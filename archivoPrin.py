@@ -1,13 +1,16 @@
-from scapy.all import sniff, wrpcap
+from scapy.all import *
 
-#captura de 30 paquetes de la red
-packages = sniff(timeout=20)
+#Capturando duarante 20 seg, timeout=20
+paquetes = sniff(timeout=10)
 #o count=50 (paquetes)
 
-print('Capturando paquetes de la red...')
 
 #Ahora lo guaramos en un archivo
-wrpcap('captura.pcap', packages)
+wrpcap('captura.pcap', paquetes)
+
+print(len(paquetes))
 
 #Confirmacion
 print('Se ha guardado la captura en el archivo captura.pcap')
+
+show_interfaces()
