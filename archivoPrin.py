@@ -27,7 +27,7 @@ def estadisticas_ips(paquetes):
         print("Pquetes con IP " + ip + " = " + str(contador))
 
 def estadisticas_puertos(paquetes):
-    print("-----------------------------------------------")
+    print("-----------------------------------------")
     print("A continuacion los puertos detectados")
     
     list_port_pac = []
@@ -42,15 +42,15 @@ def estadisticas_puertos(paquetes):
             cont_UDP += 1
             if list_port_pac.count(UDP_S) == 0:
                 list_port_pac.append(UDP_S)
-            if list_port_pac.count(UDP_D) == 0:
+            elif list_port_pac.count(UDP_D) == 0:
                 list_port_pac.append(UDP_D)        
-        if pac.haslayer(TCP):
+        elif pac.haslayer(TCP):
             TCP_S = pac[TCP].sport
             TCP_D = pac[TCP].dport
             cont_TCP += 1
             if list_port_pac.count(TCP_S) == 0:
                 list_port_pac.append(TCP_S)
-            if list_port_pac.count(TCP_D) == 0:
+            elif list_port_pac.count(TCP_D) == 0:
                 list_port_pac.append(TCP_D)
             
     for prt in list_port_pac:
@@ -59,7 +59,7 @@ def estadisticas_puertos(paquetes):
             if paq.haslayer(UDP):
                 if paq[UDP].sport == prt or paq[UDP].dport == prt:
                     contador += 1
-            if paq.haslayer(TCP):
+            elif paq.haslayer(TCP):
                 if paq[TCP].sport == prt or paq[TCP].dport == prt:
                     contador += 1
                 
@@ -69,10 +69,67 @@ def estadisticas_puertos(paquetes):
 
 
 def estadisticas_protocolos(paquetes):
-    print("lole")
+
+    print("-----------------------------------------")
+    list_prot_pac = []
+
+    for pac in paquetes:
+        if pac.haslayer(IP) and pac.haslayer(UDP):
+            if list_prot_pac.count(pac[IP].proto) == 0:
+                list_prot_pac.append(pac[IP].proto)
+        elif pac.haslayer(IP) and pac.haslayer(TCP):
+            if list_prot_pac.count(pac[IP].proto) == 0:
+                list_prot_pac.append(pac[IP].proto)
+        elif pac.haslayer(IP) and pac.haslayer(ICMP):
+            if list_prot_pac.count(pac[IP].proto) == 0:
+                list_prot_pac.append(pac[IP].proto)
+        elif pac.haslayer(IP) and pac.haslayer(IGMP):
+            if list_prot_pac.count(pac[IP].proto) == 0:
+                list_prot_pac.append(pac[IP].proto)
+
+    #Listado de protocolos
+    #ICMP = 1 // TCP = 6 // UDP = 17 // IGMP = 2
+
+
+    for prot in list_prot_pac:
+
+        protocolo = ""
+        contador = 0
+        
+        if prot == 17:
+            protocolo = "UDP"
+        elif prot == 6:
+            protocolo = "TCP"
+        elif prot == 1:
+            protocolo = "ICMP"
+        elif prot == 2:
+            protocolo = "IGMP"
+        else:
+            protocolo = "desconocido"
+        
+        for paq in paquetes:
+            if paq.haslayer(UDP) and paq.haslayer(IP):
+                if paq[IP].proto == prot:
+                    contador += 1
+            elif paq.haslayer(TCP) and paq.haslayer(IP):
+                if paq[IP].proto == prot:
+                    contador += 1
+            elif paq.haslayer(ICMP) and paq.haslayer(IP):
+                if paq[IP].proto == prot:
+                    contador += 1
+            elif paq.haslayer(IGMP) and paq.haslayer(IP):
+                if paq[IP].proto == prot:
+                    contador += 1
+                
+        print("Paquetes con el protocolo: " + protocolo + " ==> " + str(contador))
+        
+        
+    
 
 paquetes = rdpcap("http.cap")
 
 estadisticas_ips(paquetes)
 
 estadisticas_puertos(paquetes)
+
+estadisticas_protocolos(paquetes)
