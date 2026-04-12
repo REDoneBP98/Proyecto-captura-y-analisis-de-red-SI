@@ -25,8 +25,54 @@ def estadisticas_ips(paquetes):
                 if paq[IP].src == ip or paq[IP].dst == ip:
                     contador += 1
         print("Pquetes con IP " + ip + " = " + str(contador))
-        
+
+def estadisticas_puertos(paquetes):
+    print("-----------------------------------------------")
+    print("A continuacion los puertos detectados")
+    
+    list_port_pac = []
+    
+    cont_UDP = 0
+    cont_TCP = 0
+
+    for pac in paquetes:
+        if pac.haslayer(UDP):
+            UDP_S = pac[UDP].sport
+            UDP_D = pac[UDP].dport
+            cont_UDP += 1
+            if list_port_pac.count(UDP_S) == 0:
+                list_port_pac.append(UDP_S)
+            if list_port_pac.count(UDP_D) == 0:
+                list_port_pac.append(UDP_D)        
+        if pac.haslayer(TCP):
+            TCP_S = pac[TCP].sport
+            TCP_D = pac[TCP].dport
+            cont_TCP += 1
+            if list_port_pac.count(TCP_S) == 0:
+                list_port_pac.append(TCP_S)
+            if list_port_pac.count(TCP_D) == 0:
+                list_port_pac.append(TCP_D)
+            
+    for prt in list_port_pac:
+        contador = 0
+        for paq in paquetes:
+            if paq.haslayer(UDP):
+                if paq[UDP].sport == prt or paq[UDP].dport == prt:
+                    contador += 1
+            if paq.haslayer(TCP):
+                if paq[TCP].sport == prt or paq[TCP].dport == prt:
+                    contador += 1
+                
+        print("Paquetes con el puerto " + str(prt) + " ==> " + str(contador))
+    print("-----------------------------------------")
+    print("Y paquetes con UDP = " + str(cont_UDP) + " / y TCP = " + str(cont_TCP))
+
+
+def estadisticas_protocolos(paquetes):
+    print("lole")
 
 paquetes = rdpcap("http.cap")
 
 estadisticas_ips(paquetes)
+
+estadisticas_puertos(paquetes)
