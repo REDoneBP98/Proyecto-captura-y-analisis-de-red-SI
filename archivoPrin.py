@@ -1,29 +1,32 @@
 from scapy.all import *
 
-#Capturando duarante 20 seg, timeout=20
-packets = sniff(timeout=10)
-#o count=50 (paquetes)
 
+def estadisticas_ips(paquetes):
 
-#Ahora lo guaramos en un archivo
-wrpcap('captura.pcap', packets)
+    list_ip_pac = []
 
-print(len(packets))
+    print("Analizando paquetes...")
+    
+    for pac in paquetes:
+        if pac.haslayer(IP):
+            src = pac[IP].src
+            dst = pac[IP].dst
+            if list_ip_pac.count(src) == 0:
+                list_ip_pac.append(pac[IP].src)
+            elif list_ip_pac.count(dst) == 0:
+                list_ip_pac.append(pac[IP].dst)
 
-#Confirmacion
-print('Se ha guardado la captura en el archivo captura.pcap')
-
-show_interfaces()
+    print("Lista de paquetes leidos, generando resultados...")
+                
+    for ip in list_ip_pac:
+        contador = 0
+        for paq in paquetes:
+            if paq.haslayer(IP):
+                if paq[IP].src == ip or paq[IP].dst == ip:
+                    contador += 1
+        print("Pquetes con IP " + ip + " = " + str(contador))
+        
 
 paquetes = rdpcap("http.cap")
 
-#Ahora podemos intentar hacer algo diferente
-for pac in paquetes:
-	if pac.haslayer(IP):
-                src = pac[IP].src
-                dst = pac[IP].dst
-                
-
-#En teoria muestra un listado de paquetes
-print(len(paquetes))
-print(paquetes[0].display())
+estadisticas_ips(paquetes)
