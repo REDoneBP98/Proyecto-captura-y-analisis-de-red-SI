@@ -1,5 +1,7 @@
 from scapy.all import *
 
+def captar_trafico():
+    return sniff(timeout=10)
 
 def estadisticas_ips(paquetes):
 
@@ -124,9 +126,20 @@ def estadisticas_protocolos(paquetes):
         print("Paquetes con el protocolo: " + protocolo + " ==> " + str(contador))
         
         
-    
 
-paquetes = rdpcap("http.cap")
+opcion = sys.argv[1]
+
+seleccion = sys.argv[2]
+
+paquetes = []
+
+if opcion == "1":
+    print("Has elegido la opcion de: CAPTAR TRAFICO")
+    paquetes = captar_trafico()
+if opcion == "2":
+    paquetes = rdpcap(seleccion)
+    print("Has elegido la opcion de: LEER ARCHIVO")
+
 
 estadisticas_ips(paquetes)
 
