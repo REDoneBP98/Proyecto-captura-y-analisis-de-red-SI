@@ -1,16 +1,20 @@
-from scapy.all import *
-from collections import *
+import sys
+import os
+from scapy.layers.inet import IP, TCP, UDP, ICMP
+from scapy.contrib.igmp import IGMP
+from scapy import sendrecv, utils
 import time
+import collections
+import argparse
 
 #Diccionario que usaremos para rastrear la actividad
-paquetes_syn = defaultdict(list)
+paquetes_syn = collections.defaultdict(list)
 
 SYN_max = 20 #20 paquetes max
 tiempo_sosp = 10 #Segundos que utilizaremos de referencia
 
+IPs_sospechosas_syn = set()
 def detect_syn_scan(paquete):
-    IPs_alertadas = set()
-    
     if paquete.haslayer(TCP) and paquete.haslayer(IP):
         cab_TCP = paquete[TCP]
         cab_IP = paquete[IP]
@@ -31,28 +35,21 @@ def detect_syn_scan(paquete):
             puertos = {port for port, _ in paquetes_syn[IP_orig]}
 
             #SI cumple las condiciones, el paquete es sospechoso
-            if len(puertos) >= SYN_max and IP_orig not in IPs_alertadas:
-                print(f"Alerta, posible escaneo de puertos desde la direccion: {IP_orig} ")
-                print(f"Puertos detectados: {sorted(puertos)}")
-
-                #Esto es para no repetir la misma respuesta 1 millon de veces
-                IPs_alertadas.add(IP_orig)
+            if len(puertos) >= SYN_max:
+                IPs_sospechosas_syn.add(IP_orig)
 
 
-def captar_trafico():
-    return sniff(timeout=10)
+def captar_trafico(segundos):
+    return sendrecv.sniff(timeout=segundos)
 
 #Funcion para utilizar ver si te escanean el puerto
 def filtrar_escaneo():
-    sniff(filter="tcp", prn=detect_syn_scan, store=0)
+    sendrecv.sniff(filter="tcp", prn=detect_syn_scan, store=0)
     #Store = 0, no se guarda en ningun lado
 
 def estadisticas_ips(paquetes):
-
+    print("  - Estadísticas IP (origen o destino):")
     list_ip_pac = []
-
-    print("Analizando paquetes...")
-    
     for pac in paquetes:
         if pac.haslayer(IP):
             src = pac[IP].src
@@ -62,155 +59,126 @@ def estadisticas_ips(paquetes):
             elif list_ip_pac.count(dst) == 0:
                 list_ip_pac.append(pac[IP].dst)
 
-    print("Lista de paquetes leidos, generando resultados...")
-                
     for ip in list_ip_pac:
         contador = 0
         for paq in paquetes:
             if paq.haslayer(IP):
                 if paq[IP].src == ip or paq[IP].dst == ip:
                     contador += 1
-        print("Pquetes con IP " + ip + " = " + str(contador))
+        print(f"    - IP {ip:<15}:\t{contador} paquetes")
 
 def estadisticas_puertos(paquetes):
-    print("-----------------------------------------")
-    print("A continuacion los puertos detectados")
-    
-    list_port_pac = []
-    
-    cont_UDP = 0
-    cont_TCP = 0
+    print("  - Estadísticas de puertos:")
+    puertos = collections.defaultdict(int)
 
     for pac in paquetes:
-        if pac.haslayer(UDP):
-            UDP_S = pac[UDP].sport
-            UDP_D = pac[UDP].dport
-            cont_UDP += 1
-            if list_port_pac.count(UDP_S) == 0:
-                list_port_pac.append(UDP_S)
-            elif list_port_pac.count(UDP_D) == 0:
-                list_port_pac.append(UDP_D)        
-        elif pac.haslayer(TCP):
-            TCP_S = pac[TCP].sport
-            TCP_D = pac[TCP].dport
-            cont_TCP += 1
-            if list_port_pac.count(TCP_S) == 0:
-                list_port_pac.append(TCP_S)
-            elif list_port_pac.count(TCP_D) == 0:
-                list_port_pac.append(TCP_D)
-            
-    for prt in list_port_pac:
-        contador = 0
-        for paq in paquetes:
-            if paq.haslayer(UDP):
-                if paq[UDP].sport == prt or paq[UDP].dport == prt:
-                    contador += 1
-            elif paq.haslayer(TCP):
-                if paq[TCP].sport == prt or paq[TCP].dport == prt:
-                    contador += 1
-                
-        print("Paquetes con el puerto " + str(prt) + " ==> " + str(contador))
-    print("-----------------------------------------")
-    print("Y paquetes con UDP = " + str(cont_UDP) + " / y TCP = " + str(cont_TCP))
+        if not(pac.haslayer(UDP) or pac.haslayer(TCP)):
+            continue
 
+        puertos[pac.sport] += 1
+        puertos[pac.dport] += 1
+
+    for puerto, cantidad in puertos.items():
+        print(f"    - Puerto {puerto}:\t{cantidad} paquetes")
 
 def estadisticas_protocolos(paquetes):
+    print("  - Estadísticas de protocolos:")
+    protocolos = {
+        "ICMP": 0,
+        "IGMP": 0,
+        "TCP": 0,
+        "UDP": 0,
+        "OTROS": 0,
+    }
 
-    print("-----------------------------------------")
-    list_prot_pac = []
-
-    for pac in paquetes:
-        if pac.haslayer(IP) and pac.haslayer(UDP):
-            if list_prot_pac.count(pac[IP].proto) == 0:
-                list_prot_pac.append(pac[IP].proto)
-        elif pac.haslayer(IP) and pac.haslayer(TCP):
-            if list_prot_pac.count(pac[IP].proto) == 0:
-                list_prot_pac.append(pac[IP].proto)
-        elif pac.haslayer(IP) and pac.haslayer(ICMP):
-            if list_prot_pac.count(pac[IP].proto) == 0:
-                list_prot_pac.append(pac[IP].proto)
-        elif pac.haslayer(IP) and pac.haslayer(IGMP):
-            if list_prot_pac.count(pac[IP].proto) == 0:
-                list_prot_pac.append(pac[IP].proto)
-
-    #Listado de protocolos
-    #ICMP = 1 // TCP = 6 // UDP = 17 // IGMP = 2
-
-
-    for prot in list_prot_pac:
-
-        protocolo = ""
-        contador = 0
-        
-        if prot == 17:
-            protocolo = "UDP"
-        elif prot == 6:
-            protocolo = "TCP"
-        elif prot == 1:
-            protocolo = "ICMP"
-        elif prot == 2:
-            protocolo = "IGMP"
+    for paq in paquetes:
+        if paq.haslayer(ICMP):
+            protocolos["ICMP"] += 1
+        elif paq.haslayer(IGMP):
+            protocolos["IGMP"] += 1
+        elif paq.haslayer(TCP):
+            protocolos["TCP"] += 1
+        elif paq.haslayer(UDP):
+            protocolos["UDP"] += 1
         else:
-            protocolo = "desconocido"
-        
-        for paq in paquetes:
-            if paq.haslayer(UDP) and paq.haslayer(IP):
-                if paq[IP].proto == prot:
-                    contador += 1
-            elif paq.haslayer(TCP) and paq.haslayer(IP):
-                if paq[IP].proto == prot:
-                    contador += 1
-            elif paq.haslayer(ICMP) and paq.haslayer(IP):
-                if paq[IP].proto == prot:
-                    contador += 1
-            elif paq.haslayer(IGMP) and paq.haslayer(IP):
-                if paq[IP].proto == prot:
-                    contador += 1
-                
-        print("Paquetes con el protocolo: " + protocolo + " ==> " + str(contador))
+            protocolos["OTROS"] += 1
 
+    for protocolo, cantidad in protocolos.items():
+        if cantidad == 0:
+            continue
+        print(f"    - Protocolo {protocolo}:\t{cantidad} paquetes")
 
-#///////////////////////////////////////////////////////////////////////
-#MAIN
-#///////////////////////////////////////////////////////////////////////
-        
+def imprimir_estadisticas(paquetes):
+    print("- Estadísticas generales:")
+    estadisticas_ips(paquetes)
+    estadisticas_puertos(paquetes)
+    estadisticas_protocolos(paquetes)
 
+def leer_captura(pcap_path):
+    print(f"Leyendo archivo de captura \"{pcap_path}\". Esto podría tardar un poco...")
 
-opcion = sys.argv[1]
+    paquetes = utils.rdpcap(pcap_path)
 
-seleccion = sys.argv[2]
+    for paquete in paquetes:
+        detect_syn_scan(paquete)
 
-paquetes = []
+    if len(IPs_sospechosas_syn) == 0:
+        print("- SYN: No se han detectado ataques de escaneo SYN.")
+    else:
+        print(f"- SYN: Se han detectado {len(IPs_sospechosas_syn)} IPs sospechosas de escaneos SYN:")
 
-if opcion == "1":
-    print("Has elegido la opcion de: CAPTAR TRAFICO")
-    paquetes = captar_trafico()
+        for ip in IPs_sospechosas_syn:
+            print(f"  - {ip}:\tHa iniciado conexión con {len(paquetes_syn[ip])} puertos.")
+
+    imprimir_estadisticas(paquetes)
+
+def capturar_en_vivo():
+    segundos_captura = 10
+    print(f"Capturando tráfico en vivo durante {segundos_captura} segundos...")
+    try:
+        paquetes = captar_trafico(segundos_captura)
+    except PermissionError:
+        print("[ERROR] Debes de ejecutar el programa con privilegios de administrador para realizar la captura en vivo.")
+        print("\tNota: Si estas utilizando un entorno virtual (como VirtualEnv/venv), asegúrate de utilizar \"sudo -E\" y colocar la ruta completa de tu intérprete Python (por ejemplo, \".venv/bin/python3\").")
+        exit(1)
+
     print("Ahora tambien detectamos posibles escaneos: ")
     filtrar_escaneo()
 
     estadisticas_ips(paquetes)
-
     estadisticas_puertos(paquetes)
-
     estadisticas_protocolos(paquetes)
-    
-elif opcion == "2":
-    print("Si has elegido esta opcion [2], es normal que tarde mucho")
-    paquetes = rdpcap(seleccion)
-    print("Has elegido la opcion de: LEER ARCHIVO")
-    for paquete in paquetes:
-        detect_syn_scan(paquete)
 
-    estadisticas_ips(paquetes)
+#///////////////////////////////////////////////////////////////////////
+#MAIN
+#///////////////////////////////////////////////////////////////////////
+def main():
+    parser = argparse.ArgumentParser(
+        prog="Programa de captura y análisis de red",
+    )
 
-    estadisticas_puertos(paquetes)
+    parser.add_argument("-p", "--pcap")
+    parser.add_argument("-c", "--capturar", action="store_true")
+    args = parser.parse_args()
 
-    estadisticas_protocolos(paquetes)
-    
-else:
-    print("Lo sentimos, pero esta opcion no es valida")
-    print("////////////////////////////////////////////////////")
-    print("Guia: ")
-    print("Para capturar el trafico: [1] como primer parametro ")
-    print("Para leer un archivo: [2] como primer parametro ")
+    paquetes = []
 
+    if args.pcap is not None and args.capturar:
+        print("[ERROR] Proveé un pcap o elige capturar en vivo, pero no ambos.")
+        parser.print_help()
+        return
+
+    if args.pcap is not None:
+        leer_captura(args.pcap)
+        return
+
+    if args.capturar:
+        capturar_en_vivo()
+        return
+
+    print("[ERROR] No se ha elegido ninguna opcion.")
+    parser.print_help()
+    exit(1)
+
+if __name__ == "__main__":
+    main()
