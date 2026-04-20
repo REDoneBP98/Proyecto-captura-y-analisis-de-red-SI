@@ -2,6 +2,7 @@ import sys
 import os
 from scapy.layers.inet import IP, TCP, UDP, ICMP
 from scapy.contrib.igmp import IGMP
+from scapy.all import *
 from scapy import sendrecv, utils
 import time
 import collections
@@ -44,8 +45,8 @@ def captar_trafico(segundos):
 
 #Funcion para utilizar ver si te escanean el puerto
 def filtrar_escaneo():
-    sendrecv.sniff(filter="tcp", prn=detect_syn_scan, store=0)
-    #Store = 0, no se guarda en ningun lado
+    sendrecv.sniff(filter="tcp", prn=detect_syn_scan, store=0, timeout=10)
+
 
 def estadisticas_ips(paquetes):
     print("  - Estadísticas IP (origen o destino):")
